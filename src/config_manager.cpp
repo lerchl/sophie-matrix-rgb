@@ -35,29 +35,37 @@ bool ConfigManager::patch(const ConfigurationPatchDto &patch) {
     std::lock_guard<std::mutex> lock(write_mutex_);
     auto current = config_.load();
     auto next = std::make_shared<Configuration>(*current);
+
     if (patch.brightness) {
         if (*patch.brightness < 0 || *patch.brightness > 100) {
             return false;
         }
         next->brightness = *patch.brightness;
     }
+
     if (patch.mode) {
         next->mode = *patch.mode;
     }
+
     if (patch.blackout_window) {
         next->blackout_window = *patch.blackout_window;
     }
+
     if (patch.spotify_api_id || patch.spotify_api_secret) {
         SpotifyApiCredentials updated =
             next->spotify_api_credentials.value_or(SpotifyApiCredentials{});
         if (patch.spotify_api_id) {
             updated.id = *patch.spotify_api_id;
         }
+
         if (patch.spotify_api_secret) {
             updated.secret = *patch.spotify_api_secret;
         }
+
         next->spotify_api_credentials = updated;
+        next->spotify_authorization = std::nullopt;
     }
+
     config_.store(next);
     save(*next);
     return true;

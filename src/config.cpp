@@ -147,10 +147,11 @@ void from_json(const json &j, ConfigurationPatchDto &p) {
         p.blackout_window = j.at("blackoutWindow").get<BlackoutWindow>();
     }
     if (j.contains("spotifyApiCredentialsId")) {
-        p.spotify_api_id = j.at("spotifyApiCredentialsId").get<std::string>();
+        p.spotify_api_id =
+            j.at("spotifyApiCredentialsId").get<std::optional<std::string>>();
     }
     if (j.contains("spotifyApiCredentialsSecret")) {
-        p.spotify_api_secret =
-            j.at("spotifyApiCredentialsSecret").get<std::string>();
+        p.spotify_api_secret = j.at("spotifyApiCredentialsSecret")
+                                   .get<std::optional<std::string>>();
     }
 }
