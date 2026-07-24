@@ -1,9 +1,11 @@
 #include "config_manager.hpp"
 #include "config.hpp"
+
 #include <filesystem>
 #include <fstream>
 #include <nlohmann/json.hpp>
 #include <optional>
+#include <iostream>
 
 using json = nlohmann::json;
 
@@ -91,6 +93,9 @@ void ConfigManager::save(const Configuration &c) const {
     json j = c;
 
     std::string tmp = path_ + ".tmp";
+
+    std::cerr << "[DEBUG] path_: '" << path_ << "'" << std::endl;
+    std::cerr << "[DEBUG] tmp:   '" << tmp << "'" << std::endl;
 
     {
         std::ofstream f(tmp);
