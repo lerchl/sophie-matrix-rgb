@@ -66,11 +66,16 @@ struct ConfigurationViewDto {
 };
 void to_json(json &j, const ConfigurationViewDto &v);
 
+template <typename T> struct PatchField {
+    bool provided = false;
+    std::optional<T> value;
+};
+
 struct ConfigurationPatchDto {
-    std::optional<int> brightness;
-    std::optional<Mode> mode;
-    std::optional<BlackoutWindow> blackout_window;
-    std::optional<std::string> spotify_api_id;
-    std::optional<std::string> spotify_api_secret;
+    PatchField<int> brightness;
+    PatchField<Mode> mode;
+    PatchField<BlackoutWindow> blackout_window;
+    PatchField<std::string> spotify_api_id;
+    PatchField<std::string> spotify_api_secret;
 };
 void from_json(const json &j, ConfigurationPatchDto &p);

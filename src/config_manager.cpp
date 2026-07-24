@@ -33,41 +33,72 @@ std::shared_ptr<const Configuration> ConfigManager::get() const {
 
 bool ConfigManager::patch(const ConfigurationPatchDto &patch) {
     std::lock_guard<std::mutex> lock(write_mutex_);
+
     auto current = config_.load();
     auto next = std::make_shared<Configuration>(*current);
 
-    if (patch.brightness) {
-        if (*patch.brightness < 0 || *patch.brightness > 100) {
+    if (patch.brightness.provided) {
+        if (!patch.brightness.value) {
             return false;
         }
-        next->brightness = *patch.brightness;
+
+        if (*patch.brightness.value < 0 || *patch.brightness.value > 100) {
+            return false;
+        }
+
+        next->brightness = *patch.brightness.value;
     }
 
-    if (patch.mode) {
-        next->mode = *patch.mode;
+    if (patch.mode.provided) {
+        if (!patch.mode.value) {
+            return false;
+        }
+
+        next->mode = *patch.mode.value;
     }
 
-    if (patch.blackout_window) {
-        next->blackout_window = *patch.blackout_window;
+    if (patch.blackout_window.provided) {
+        if (!patch.blackout_window.value) {
+            return false;
+        }
+
+        next->blackout_window = *patch.blackout_window.value;
     }
 
-    if (patch.spotify_api_id || patch.spotify_api_secret) {
+    if (patch.spotify_api_id.provided || patch.spotify_api_secret.provided) {
         SpotifyApiCredentials updated =
             next->spotify_api_credentials.value_or(SpotifyApiCredentials{});
-        if (patch.spotify_api_id) {
-            updated.id = *patch.spotify_api_id;
+
+        if (patch.spotify_api_id.provided) {
+            if (patch.spotify_api_id.value) {
+                updated.id = *patch.spotify_api_id.value;
+            } else {
+                updated.id = std::nullopt;
+            }
         }
 
-        if (patch.spotify_api_secret) {
-            updated.secret = *patch.spotify_api_secret;
+        if (patch.spotify_api_secret.provided) {
+            if (patch.spotify_api_secret.value) {
+                updated.secret = *patch.spotify_api_secret.value;
+            } else {
+                updated.secret = std::nullopt;
+            }
         }
 
-        next->spotify_api_credentials = updated;
+        // Remove credentials object if both fields are empty
+        if (!updated.id && !updated.secret) {
+            next->spotify_api_credentials = std::nullopt;
+        } else {
+            next->spotify_api_credentials = updated;
+        }
+
+        // Any credential modification invalidates the authorization
         next->spotify_authorization = std::nullopt;
     }
 
     config_.store(next);
     save(*next);
+
     return true;
 }
 

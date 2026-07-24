@@ -138,20 +138,35 @@ void to_json(json &j, const ConfigurationViewDto &v) {
 
 void from_json(const json &j, ConfigurationPatchDto &p) {
     if (j.contains("brightness")) {
-        p.brightness = j.at("brightness").get<int>();
+        p.brightness.provided = true;
+        p.brightness.value = j.at("brightness").get<int>();
     }
+
     if (j.contains("mode")) {
-        p.mode = j.at("mode").get<Mode>();
+        p.mode.provided = true;
+        p.mode.value = j.at("mode").get<Mode>();
     }
+
     if (j.contains("blackoutWindow")) {
-        p.blackout_window = j.at("blackoutWindow").get<BlackoutWindow>();
+        p.blackout_window.provided = true;
+        p.blackout_window.value = j.at("blackoutWindow").get<BlackoutWindow>();
     }
+
     if (j.contains("spotifyApiCredentialsId")) {
-        p.spotify_api_id =
-            j.at("spotifyApiCredentialsId").get<std::optional<std::string>>();
+        p.spotify_api_id.provided = true;
+
+        if (!j.at("spotifyApiCredentialsId").is_null()) {
+            p.spotify_api_id.value =
+                j.at("spotifyApiCredentialsId").get<std::string>();
+        }
     }
+
     if (j.contains("spotifyApiCredentialsSecret")) {
-        p.spotify_api_secret = j.at("spotifyApiCredentialsSecret")
-                                   .get<std::optional<std::string>>();
+        p.spotify_api_secret.provided = true;
+
+        if (!j.at("spotifyApiCredentialsSecret").is_null()) {
+            p.spotify_api_secret.value =
+                j.at("spotifyApiCredentialsSecret").get<std::string>();
+        }
     }
 }
