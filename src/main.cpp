@@ -55,6 +55,7 @@ static int usage(const char *progname) {
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "\t-s <settings-file>   : Config file path to use (will be "
                     "created if it does not exist).\n");
+    fprintf(stderr, "\t-c <url>             : Url for spotify callback.\n");
     fprintf(stderr, "\t-f <url>             : Url to frontend.\n");
     fprintf(stderr,
             "\t-p <port>            : Port to listen on Default: 8080.\n");
@@ -90,16 +91,20 @@ int main(int argc, char *argv[]) {
 
     int port = 8080;
     const char *config_file_path = NULL;
+    const char *spotify_callback_url = NULL;
     const char *frontend_url = NULL;
 
     int opt;
-    while ((opt = getopt(argc, argv, "p:s:f:")) != -1) {
+    while ((opt = getopt(argc, argv, "p:s:c:f:")) != -1) {
         switch (opt) {
         case 'p':
             port = std::stoi(optarg);
             break;
         case 's':
             config_file_path = strdup(optarg);
+            break;
+        case 'c':
+            spotify_callback_url = strdup(optarg);
             break;
         case 'f':
             frontend_url = strdup(optarg);
@@ -111,6 +116,11 @@ int main(int argc, char *argv[]) {
 
     if (config_file_path == NULL) {
         fprintf(stderr, "Need to specify a config file path with -s\n");
+        return usage(argv[0]);
+    }
+
+    if (spotify_callback_url == NULL) {
+        fprintf(stderr, "Need to specify the spotify callback url with -c\n");
         return usage(argv[0]);
     }
 
@@ -137,8 +147,9 @@ int main(int argc, char *argv[]) {
             std::make_shared<std::optional<CurrentlyPlaying>>(std::nullopt);
 
     auto run_http_server = make_http_server(config_manager);
-    http_server_thread = std::thread([&run_http_server, port, frontend_url]() {
-        run_http_server(http_server, port, frontend_url);
+    http_server_thread = std::thread([&run_http_server, port,
+                                      spotify_callback_url, frontend_url]() {
+        run_http_server(http_server, port, spotify_callback_url, frontend_url);
     });
     spotify_job_thread = std::thread([&]() {
         spotifyPollLoop(app_cv, app_mutex, app_running, config_manager,

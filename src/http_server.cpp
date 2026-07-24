@@ -26,9 +26,10 @@ to_view_dto(const std::optional<SpotifyApiCredentials> &creds) {
         .id = creds->id, .secret_set = creds->secret.has_value()};
 }
 
-std::function<void(httplib::Server &, const int, const char *)>
+std::function<void(httplib::Server &, const int, const char *, const char *)>
 make_http_server(ConfigManager &config_manager) {
     return [&config_manager](httplib::Server &server, const int port,
+                             const char *spotify_callback_url,
                              const char *frontend_url) {
         server.set_default_headers({
             {"Access-Control-Allow-Origin", "*"},
@@ -92,8 +93,7 @@ make_http_server(ConfigManager &config_manager) {
         // form for a device that isn't a public web app, so we build it
         // from the port this server is actually listening on.
         // ------------------------------------------------------------------
-        const std::string redirect_uri =
-            "http://127.0.0.1:" + std::to_string(port) + "/callback";
+
         const char *state = "PatVJNV8tGz5tKq2c7osQ5YT76io36yS";
 
         server.Get("/authorize", [&](const httplib::Request &,
@@ -116,7 +116,8 @@ make_http_server(ConfigManager &config_manager) {
             url << kSpotifyAuthorizeUrl << "?response_type=code"
                 << "&client_id=" << *current_config->spotify_api_credentials->id
                 << "&scope=" << kSpotifyScopes
-                << "&redirect_uri=" << redirect_uri << "&state=" << state;
+                << "&redirect_uri=" << spotify_callback_url
+                << "&state=" << state;
 
             std::cout << url.str() << std::endl;
 
@@ -189,7 +190,8 @@ make_http_server(ConfigManager &config_manager) {
 
             const std::string body = "grant_type=authorization_code"
                                      "&code=" +
-                                     code + "&redirect_uri=" + redirect_uri;
+                                     code +
+                                     "&redirect_uri=" + spotify_callback_url;
 
             std::cout << "Requesting Spotify access token..." << std::endl;
 
