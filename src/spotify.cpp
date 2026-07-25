@@ -19,7 +19,6 @@ void spotifyPollLoop(
         &currently_playing) {
 
     while (app_running) {
-        std::cout << "loop" << std::endl;
         auto config = config_manager.get();
 
         const bool has_auth = config->spotify_authorization.has_value();
@@ -31,7 +30,7 @@ void spotifyPollLoop(
         if (!has_auth || !has_creds) {
             std::cout
                 << "Not authorized with a spotify account or spotify api "
-                   "credentials not event set, trying again in 15 seconds..."
+                   "credentials not even set, trying again in 15 seconds..."
                 << std::endl;
             std::unique_lock<std::mutex> lock(app_mutex);
             app_cv.wait_for(lock, std::chrono::seconds(15),
@@ -156,12 +155,6 @@ void spotifyPollLoop(
                                 smallest->at("url").get<std::string>();
                         }
                     }
-                }
-
-                if (dto.album_cover_url) {
-                    std::cout << *dto.album_cover_url << std::endl;
-                } else {
-                    std::cout << "(no album cover)" << std::endl;
                 }
 
                 currently_playing.store(

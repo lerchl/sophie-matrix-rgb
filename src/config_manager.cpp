@@ -135,80 +135,23 @@ Configuration ConfigManager::load() const {
 
 void ConfigManager::save(const Configuration &c) const {
     json j = c;
-
     std::string tmp = path_ + ".tmp";
 
-    std::cerr << "[DEBUG] path_:      '" << path_ << "'\n";
-    std::cerr << "[DEBUG] tmp:        '" << tmp << "'\n";
-    std::cerr << "[DEBUG] cwd:        '" << std::filesystem::current_path()
-              << "'\n";
-    std::cerr << "[DEBUG] euid:       " << geteuid() << "\n";
-    std::cerr << "[DEBUG] egid:       " << getegid() << "\n";
-
-    if (passwd *pw = getpwuid(geteuid())) {
-        std::cerr << "[DEBUG] user:       " << pw->pw_name << "\n";
-    }
-
-    auto parent = std::filesystem::path(path_).parent_path();
-
-    std::cerr << "[DEBUG] parent:     '" << parent << "'\n";
-    std::cerr << "[DEBUG] parent exists: " << std::filesystem::exists(parent)
-              << "\n";
-    std::cerr << "[DEBUG] file exists:   " << std::filesystem::exists(path_)
-              << "\n";
-
-    std::error_code ec;
-
-    auto print_status = [](const std::filesystem::path &p) {
-        std::error_code ec;
-        auto st = std::filesystem::status(p, ec);
-        if (ec) {
-            std::cerr << "[DEBUG] status(" << p << "): " << ec.message()
-                      << "\n";
-            return;
-        }
-
-        std::cerr << "[DEBUG] perms(" << p
-                  << "): " << static_cast<unsigned>(st.permissions()) << "\n";
-    };
-
-    print_status(parent);
-    print_status(path_);
-
-    errno = 0;
     {
         std::ofstream f(tmp);
-
         if (!f.is_open()) {
-            std::cerr << "[DEBUG] errno:      " << errno << " ("
-                      << std::strerror(errno) << ")\n";
-
-            struct stat st{};
-            if (::stat(parent.c_str(), &st) == 0) {
-                std::cerr << "[DEBUG] parent mode: " << std::oct
-                          << (st.st_mode & 0777) << std::dec << "\n";
-                std::cerr << "[DEBUG] parent uid:  " << st.st_uid << "\n";
-                std::cerr << "[DEBUG] parent gid:  " << st.st_gid << "\n";
-            }
-
             throw std::runtime_error("Cannot open " + tmp);
         }
-
         f << j.dump(4);
         f.flush();
-
         if (!f) {
-            std::cerr << "[DEBUG] write errno: " << errno << " ("
-                      << std::strerror(errno) << ")\n";
             throw std::runtime_error("Failed writing config file");
         }
     }
 
+    std::error_code ec;
     std::filesystem::rename(tmp, path_, ec);
-
     if (ec) {
-        std::cerr << "[DEBUG] rename error: " << ec.value() << " ("
-                  << ec.message() << ")\n";
         throw std::runtime_error("Rename failed: " + ec.message());
     }
 }

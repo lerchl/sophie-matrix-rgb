@@ -129,8 +129,6 @@ make_http_server(ConfigManager &config_manager) {
                 << "&redirect_uri=" << spotify_callback_url
                 << "&state=" << state;
 
-            std::cout << url.str() << std::endl;
-
             res.status = 302;
             res.set_header("Location", url.str());
         });
