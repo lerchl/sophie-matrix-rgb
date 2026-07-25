@@ -40,6 +40,16 @@ make_http_server(ConfigManager &config_manager) {
         server.Options(".*", [](const httplib::Request &,
                                 httplib::Response &res) { res.status = 204; });
 
+        server.Post("/shutdown", [](const httplib::Request &,
+                                    httplib::Response &res) {
+            res.status = 204;
+
+            std::thread([]() {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                std::system("systemctl poweroff");
+            }).detach();
+        });
+
         server.Get("/configuration", [&config_manager](const httplib::Request &,
                                                        httplib::Response &res) {
             auto config = config_manager.get();
