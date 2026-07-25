@@ -46,7 +46,7 @@ make_http_server(ConfigManager &config_manager) {
 
             std::thread([]() {
                 std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-                std::system("systemctl poweroff");
+                std::system("systemctl poweroff -i");
             }).detach();
         });
 
