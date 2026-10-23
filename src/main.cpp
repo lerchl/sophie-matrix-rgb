@@ -80,6 +80,9 @@ Time nowTime() {
 
 int main(int argc, char *argv[]) {
     rgb_matrix::RGBMatrix::Options matrix_options;
+    // Use the custom pinout by default; still overridable with
+    // --led-gpio-mapping=<name>.
+    matrix_options.hardware_mapping = "sophie";
     rgb_matrix::RuntimeOptions runtime_opt;
 
     if (!rgb_matrix::ParseOptionsFromFlags(&argc, &argv, &matrix_options,

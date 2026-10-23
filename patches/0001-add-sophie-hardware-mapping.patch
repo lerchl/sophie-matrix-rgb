@@ -1,0 +1,55 @@
+diff --git a/lib/hardware-mapping.c b/lib/hardware-mapping.c
+index 758b428..0bccc8f 100644
+--- a/lib/hardware-mapping.c
++++ b/lib/hardware-mapping.c
+@@ -66,6 +66,50 @@ struct HardwareMapping matrix_hardware_mappings[] = {
+     .p2_b2         = GPIO_BIT(21),
+   },
+ 
++  /*
++   * Regular mapping for the Sophie matrix, with the row address line B
++   * moved from GPIO 23 to GPIO 5.
++   * Note: GPIO 5 is normally chain 1/G1, so chain 1 can not be used with
++   * this mapping.
++   */
++  {
++    .name          = "sophie",
++
++    .output_enable = GPIO_BIT(18),
++    .clock         = GPIO_BIT(17),
++    .strobe        = GPIO_BIT(4),
++
++    /* Address lines */
++    .a             = GPIO_BIT(22),
++    .b             = GPIO_BIT(5),
++    .c             = GPIO_BIT(24),
++    .d             = GPIO_BIT(25),
++    .e             = GPIO_BIT(15),  /* RxD kept free unless 1:64 */
++
++    /* Parallel chain 0, RGB for both sub-panels */
++    .p0_r1         = GPIO_BIT(11),  /* masks: SPI0_SCKL  */
++    .p0_g1         = GPIO_BIT(27),
++    .p0_b1         = GPIO_BIT(7),   /* masks: SPI0_CE1   */
++    .p0_r2         = GPIO_BIT(8),   /* masks: SPI0_CE0   */
++    .p0_g2         = GPIO_BIT(9),   /* masks: SPI0_MISO  */
++    .p0_b2         = GPIO_BIT(10),  /* masks: SPI0_MOSI  */
++
++    /* Chain 1: G1 would have to use GPIO 5, which is the B address line. */
++    .p1_r1         = GPIO_BIT(12),
++    .p1_b1         = GPIO_BIT(6),
++    .p1_r2         = GPIO_BIT(19),
++    .p1_g2         = GPIO_BIT(13),
++    .p1_b2         = GPIO_BIT(20),
++
++    /* Chain 2 */
++    .p2_r1         = GPIO_BIT(14), /* masks TxD when parallel=3 */
++    .p2_g1         = GPIO_BIT(2),  /* masks SCL when parallel=3 */
++    .p2_b1         = GPIO_BIT(3),  /* masks SDA when parallel=3 */
++    .p2_r2         = GPIO_BIT(26),
++    .p2_g2         = GPIO_BIT(16),
++    .p2_b2         = GPIO_BIT(21),
++  },
++
+   /*
+    * This is used if you have an Adafruit HAT in the default configuration
+    */
