@@ -22,7 +22,7 @@ index 758b428..66aba08 100644
 +    /* Address lines */
 +    .a             = GPIO_BIT(22),
 +    .b             = GPIO_BIT(26),
-+    .c             = GPIO_BIT(24),
++    .c             = GPIO_BIT(21),
 +    .d             = GPIO_BIT(25),
 +    .e             = GPIO_BIT(15),  /* RxD kept free unless 1:64 */
 +
