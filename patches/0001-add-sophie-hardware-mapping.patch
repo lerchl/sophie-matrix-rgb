@@ -8,7 +8,7 @@ index 758b428..66aba08 100644
  
 +  /*
 +   * Regular mapping for the Sophie matrix, with the row address line B
-+   * moved from GPIO 23 to GPIO 26.
++   * moved from GPIO 23 to GPIO 26 and line C moved from GPIO 24 to GPIO 21.
 +   * Note: GPIO 26 is normally chain 2/R2, so chain 2 is not available with
 +   * this mapping.
 +   */
