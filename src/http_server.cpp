@@ -27,8 +27,8 @@ to_view_dto(const std::optional<SpotifyApiCredentials> &creds) {
 }
 
 std::function<void(httplib::Server &, const int, const char *, const char *)>
-make_http_server(ConfigManager &config_manager) {
-    return [&config_manager](httplib::Server &server, const int port,
+make_http_server(const char *app_version, ConfigManager &config_manager) {
+    return [&config_manager, app_version](httplib::Server &server, const int port,
                              const char *spotify_callback_url,
                              const char *frontend_url) {
         server.set_default_headers({
@@ -39,6 +39,13 @@ make_http_server(ConfigManager &config_manager) {
         });
         server.Options(".*", [](const httplib::Request &,
                                 httplib::Response &res) { res.status = 204; });
+
+        server.Get("/version", [app_version](const httplib::Request &,
+                                             httplib::Response &res) {
+            json j = {{"version", app_version}};
+            res.status = 200;
+            res.set_content(j.dump(), "application/json");
+        });
 
         server.Post("/shutdown", [](const httplib::Request &,
                                     httplib::Response &res) {

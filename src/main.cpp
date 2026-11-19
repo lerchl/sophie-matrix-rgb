@@ -25,6 +25,10 @@
 #include "http_server.hpp"
 #include "spotify.hpp"
 
+#ifndef APP_VERSION
+#define APP_VERSION "unknown"
+#endif
+
 using json = nlohmann::json;
 
 std::condition_variable app_cv;
@@ -149,7 +153,7 @@ int main(int argc, char *argv[]) {
         currently_playing =
             std::make_shared<std::optional<CurrentlyPlaying>>(std::nullopt);
 
-    auto run_http_server = make_http_server(config_manager);
+    auto run_http_server = make_http_server(APP_VERSION, config_manager);
     http_server_thread = std::thread([&run_http_server, port,
                                       spotify_callback_url, frontend_url]() {
         run_http_server(http_server, port, spotify_callback_url, frontend_url);

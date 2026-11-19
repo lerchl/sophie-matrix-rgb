@@ -5,4 +5,4 @@
 
 std::function<void(httplib::Server &server, const int port,
                    const char *spotify_callback_url, const char *frontend_url)>
-make_http_server(ConfigManager &config_manager);
+make_http_server(const char* app_version, ConfigManager &config_manager);

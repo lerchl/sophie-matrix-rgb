@@ -1,4 +1,5 @@
 VERSION=0.1.0
+BUILD := $(VERSION)-$(shell git rev-parse --short HEAD)$(shell git diff --quiet || echo "-dirty")
 RGB_LIB_DISTRIBUTION=external/rpi-rgb-led-matrix
 RGB_INCDIR=$(RGB_LIB_DISTRIBUTION)/include
 RGB_LIBDIR=$(RGB_LIB_DISTRIBUTION)/lib
@@ -39,10 +40,12 @@ build_folder:
 	mkdir -p build/obj
 
 dev: CXXFLAGS += -O0
+dev: DEFINES := -DAPP_VERSION=\"$(BUILD)\"
 dev: $(RGB_LIBRARY) build_folder $(OBJS)
 	$(CXX) $(CXXFLAGS) $(OBJS) $(DEFINES) -o build/sophie-matrix-rgb $(LDFLAGS)
 
 prod: CXXFLAGS += -O3
+prod: DEFINES := -DAPP_VERSION=\"$(VERSION)\"
 prod: $(RGB_LIBRARY) build_folder $(OBJS)
 	$(CXX) $(CXXFLAGS) $(OBJS) $(DEFINES) -o build/sophie-matrix-rgb $(LDFLAGS)
 
