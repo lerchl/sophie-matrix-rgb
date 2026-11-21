@@ -121,24 +121,52 @@ void draw_spinning_circle(const Image &src, float angle_radians, int dst_size,
     // Full disc radius (outer edge of the vinyl).
     const float radius = dst_size / 2.0f;
 
-    // Album art ends here; the band between art_radius and radius is the
-    // matte outer rim (its width is controlled by `padding`).
-    const float art_radius = std::max(0.0f, radius - padding);
+    // Outer matte rim is half the given padding.
+    const float rim_width = padding * 0.5f;
+    const float art_radius = std::max(0.0f, radius - rim_width);
 
-    // Matte inner ring around the spindle hole; art starts outside of it.
+    // Inner matte ring is half as wide as before (was 0.20 * radius).
     const float hole_radius = radius * 0.05f;
     const float inner_ring_radius =
-        std::max(hole_radius + 1.0f, radius * 0.20f);
+        std::max(hole_radius + 1.0f, radius * 0.10f);
 
     // Map the source so its shortest side fits the art area.
     const float scale = std::min(src.width, src.height) / (art_radius * 2.0f);
 
-    // Matte vinyl colors: dark, low contrast, no specular shine.
-    const float matte_base[3] = {22.0f, 22.0f, 24.0f};
-    const float matte_lip[3] = {44.0f, 44.0f, 47.0f}; // subtle bevel highlight
+    // Lip thickness in pixels (was 1.0).
+    const float lip_width = 0.5f;
 
     auto lerp = [](float a, float b, float t) { return a + (b - a) * t; };
     auto clamp01 = [](float v) { return std::min(1.0f, std::max(0.0f, v)); };
+
+    // --- Matte color: average cover color, darkened.
+    // Subsampled so it stays cheap; cache this per cover if you want.
+    float matte_base[3] = {0.0f, 0.0f, 0.0f};
+    {
+        const int step_x = std::max(1, src.width / 32);
+        const int step_y = std::max(1, src.height / 32);
+        double sum[3] = {0.0, 0.0, 0.0};
+        int count = 0;
+        for (int y = 0; y < src.height; y += step_y) {
+            for (int x = 0; x < src.width; x += step_x) {
+                for (int c = 0; c < 3; ++c) {
+                    sum[c] += src.pixels[(y * src.width + x) * 3 + c];
+                }
+                ++count;
+            }
+        }
+        for (int c = 0; c < 3; ++c) {
+            const float avg =
+                count > 0 ? static_cast<float>(sum[c] / count) : 0.0f;
+            matte_base[c] = avg * 0.40f; // darker, matte version of the cover
+        }
+    }
+
+    // Lip is a slightly lighter version of the same matte color.
+    float matte_lip[3];
+    for (int c = 0; c < 3; ++c) {
+        matte_lip[c] = std::min(255.0f, matte_base[c] * 1.5f + 6.0f);
+    }
 
     for (int y = 0; y < dst_size; ++y) {
         for (int x = 0; x < dst_size; ++x) {
@@ -146,14 +174,11 @@ void draw_spinning_circle(const Image &src, float angle_radians, int dst_size,
             const float dy = y - dst_c + 0.5f;
             const float dist = std::sqrt(dx * dx + dy * dy);
 
-            // Cheap reject outside the disc / inside the hole (with 0.5px
-            // margin for anti-aliasing).
             if (dist > radius + 0.5f || dist < hole_radius - 0.5f) {
                 continue;
             }
 
-            // Coverage of the whole disc (anti-aliased outer edge and hole
-            // edge).
+            // Anti-aliased coverage of the whole disc.
             const float disc_cov = clamp01(radius - dist + 0.5f) *
                                    clamp01(dist - hole_radius + 0.5f);
             if (disc_cov <= 0.0f) {
@@ -164,10 +189,10 @@ void draw_spinning_circle(const Image &src, float angle_radians, int dst_size,
             float art_cov = clamp01(art_radius - dist + 0.5f) *
                             clamp01(dist - inner_ring_radius + 0.5f);
 
-            // --- Matte color with a faint lip at the outer edge and the hole
-            // edge.
-            const float lip_outer = clamp01(1.0f - (radius - dist));
-            const float lip_hole = clamp01(1.0f - (dist - hole_radius));
+            // Thin lip at the outer edge and the hole edge.
+            const float lip_outer = clamp01(1.0f - (radius - dist) / lip_width);
+            const float lip_hole =
+                clamp01(1.0f - (dist - hole_radius) / lip_width);
             const float lip = std::max(lip_outer, lip_hole) * 0.6f;
 
             float color[3];
@@ -175,7 +200,7 @@ void draw_spinning_circle(const Image &src, float angle_radians, int dst_size,
                 color[c] = lerp(matte_base[c], matte_lip[c], lip);
             }
 
-            // --- Album art, rotated.
+            // Album art, rotated.
             if (art_cov > 0.0f) {
                 const float rx = dx * cos_a + dy * sin_a;
                 const float ry = -dx * sin_a + dy * cos_a;
@@ -183,10 +208,8 @@ void draw_spinning_circle(const Image &src, float angle_radians, int dst_size,
                 const float sx = src_cx + rx * scale;
                 const float sy = src_cy + ry * scale;
 
-                if (sx < 0.0f || sy < 0.0f || sx >= src.width - 1 ||
-                    sy >= src.height - 1) {
-                    art_cov = 0.0f; // fall back to matte
-                } else {
+                if (sx >= 0.0f && sy >= 0.0f && sx < src.width - 1 &&
+                    sy < src.height - 1) {
                     const int x0 = static_cast<int>(sx);
                     const int y0 = static_cast<int>(sy);
                     const float fx = sx - x0;
@@ -211,7 +234,6 @@ void draw_spinning_circle(const Image &src, float angle_radians, int dst_size,
                 }
             }
 
-            // Fade by disc coverage (blends toward black on the LED panel).
             uint8_t rgb[3];
             for (int c = 0; c < 3; ++c) {
                 rgb[c] = static_cast<uint8_t>(
