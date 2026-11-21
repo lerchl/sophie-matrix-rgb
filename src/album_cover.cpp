@@ -116,71 +116,106 @@ void draw_spinning_circle(const Image &src, float angle_radians, int dst_size,
 
     const float src_cx = src.width / 2.0f;
     const float src_cy = src.height / 2.0f;
-
     const float dst_c = dst_size / 2.0f;
 
-    // Outer disc radius.
+    // Full disc radius (outer edge of the vinyl).
     const float radius = dst_size / 2.0f;
 
-    // Radius that the album art occupies, leaving transparent padding.
+    // Album art ends here; the band between art_radius and radius is the
+    // matte outer rim (its width is controlled by `padding`).
     const float art_radius = std::max(0.0f, radius - padding);
 
-    const float radius_sq = art_radius * art_radius;
+    // Matte inner ring around the spindle hole; art starts outside of it.
+    const float hole_radius = radius * 0.05f;
+    const float inner_ring_radius =
+        std::max(hole_radius + 1.0f, radius * 0.20f);
 
-    // Map the source image so its shortest side exactly fits inside the
-    // drawable circle.
+    // Map the source so its shortest side fits the art area.
     const float scale = std::min(src.width, src.height) / (art_radius * 2.0f);
 
-    const float hole_radius = radius * 0.05f;
-    const float hole_radius_sq = hole_radius * hole_radius;
+    // Matte vinyl colors: dark, low contrast, no specular shine.
+    const float matte_base[3] = {22.0f, 22.0f, 24.0f};
+    const float matte_lip[3] = {44.0f, 44.0f, 47.0f}; // subtle bevel highlight
 
     auto lerp = [](float a, float b, float t) { return a + (b - a) * t; };
+    auto clamp01 = [](float v) { return std::min(1.0f, std::max(0.0f, v)); };
 
     for (int y = 0; y < dst_size; ++y) {
         for (int x = 0; x < dst_size; ++x) {
             const float dx = x - dst_c + 0.5f;
             const float dy = y - dst_c + 0.5f;
-            const float dist_sq = dx * dx + dy * dy;
+            const float dist = std::sqrt(dx * dx + dy * dy);
 
-            // Outside the drawable circle or inside the center hole.
-            if (dist_sq > radius_sq || dist_sq < hole_radius_sq) {
+            // Cheap reject outside the disc / inside the hole (with 0.5px
+            // margin for anti-aliasing).
+            if (dist > radius + 0.5f || dist < hole_radius - 0.5f) {
                 continue;
             }
 
-            // Rotate around the center.
-            const float rx = dx * cos_a + dy * sin_a;
-            const float ry = -dx * sin_a + dy * cos_a;
-
-            // Map into source image.
-            const float sx = src_cx + rx * scale;
-            const float sy = src_cy + ry * scale;
-
-            if (sx < 0.0f || sy < 0.0f || sx >= src.width - 1 ||
-                sy >= src.height - 1) {
+            // Coverage of the whole disc (anti-aliased outer edge and hole
+            // edge).
+            const float disc_cov = clamp01(radius - dist + 0.5f) *
+                                   clamp01(dist - hole_radius + 0.5f);
+            if (disc_cov <= 0.0f) {
                 continue;
             }
 
-            const int x0 = static_cast<int>(sx);
-            const int y0 = static_cast<int>(sy);
+            // Coverage of the album art (between inner ring and outer rim).
+            float art_cov = clamp01(art_radius - dist + 0.5f) *
+                            clamp01(dist - inner_ring_radius + 0.5f);
 
-            const float fx = sx - x0;
-            const float fy = sy - y0;
+            // --- Matte color with a faint lip at the outer edge and the hole
+            // edge.
+            const float lip_outer = clamp01(1.0f - (radius - dist));
+            const float lip_hole = clamp01(1.0f - (dist - hole_radius));
+            const float lip = std::max(lip_outer, lip_hole) * 0.6f;
 
-            uint8_t rgb[3];
-
+            float color[3];
             for (int c = 0; c < 3; ++c) {
-                const float p00 = src.pixels[(y0 * src.width + x0) * 3 + c];
-                const float p10 = src.pixels[(y0 * src.width + x0 + 1) * 3 + c];
-                const float p01 =
-                    src.pixels[((y0 + 1) * src.width + x0) * 3 + c];
-                const float p11 =
-                    src.pixels[((y0 + 1) * src.width + x0 + 1) * 3 + c];
+                color[c] = lerp(matte_base[c], matte_lip[c], lip);
+            }
 
-                const float top = lerp(p00, p10, fx);
-                const float bottom = lerp(p01, p11, fx);
+            // --- Album art, rotated.
+            if (art_cov > 0.0f) {
+                const float rx = dx * cos_a + dy * sin_a;
+                const float ry = -dx * sin_a + dy * cos_a;
 
-                rgb[c] =
-                    static_cast<uint8_t>(std::round(lerp(top, bottom, fy)));
+                const float sx = src_cx + rx * scale;
+                const float sy = src_cy + ry * scale;
+
+                if (sx < 0.0f || sy < 0.0f || sx >= src.width - 1 ||
+                    sy >= src.height - 1) {
+                    art_cov = 0.0f; // fall back to matte
+                } else {
+                    const int x0 = static_cast<int>(sx);
+                    const int y0 = static_cast<int>(sy);
+                    const float fx = sx - x0;
+                    const float fy = sy - y0;
+
+                    for (int c = 0; c < 3; ++c) {
+                        const float p00 =
+                            src.pixels[(y0 * src.width + x0) * 3 + c];
+                        const float p10 =
+                            src.pixels[(y0 * src.width + x0 + 1) * 3 + c];
+                        const float p01 =
+                            src.pixels[((y0 + 1) * src.width + x0) * 3 + c];
+                        const float p11 =
+                            src.pixels[((y0 + 1) * src.width + x0 + 1) * 3 + c];
+
+                        const float top = lerp(p00, p10, fx);
+                        const float bottom = lerp(p01, p11, fx);
+                        const float art = lerp(top, bottom, fy);
+
+                        color[c] = lerp(color[c], art, art_cov);
+                    }
+                }
+            }
+
+            // Fade by disc coverage (blends toward black on the LED panel).
+            uint8_t rgb[3];
+            for (int c = 0; c < 3; ++c) {
+                rgb[c] = static_cast<uint8_t>(
+                    std::round(clamp01(color[c] * disc_cov / 255.0f) * 255.0f));
             }
 
             canvas->SetPixel(offset_x + x, offset_y + y, rgb[0], rgb[1],
