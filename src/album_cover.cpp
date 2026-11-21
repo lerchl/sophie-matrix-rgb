@@ -107,9 +107,11 @@ void draw_resized_square(const Image &src, int dst_size, int offset_x,
 void draw_spinning_circle(const Image &src, float angle_radians, int dst_size,
                           int offset_x, int offset_y,
                           rgb_matrix::FrameCanvas *canvas, float padding) {
-    if (src.width < 2 || src.height < 2 || src.pixels.empty()) {
+    if (src.width < 2 || src.height < 2 || src.pixels.empty() || dst_size < 2) {
         return;
     }
+
+    constexpr int SS = 2;
 
     const float cos_a = std::cos(angle_radians);
     const float sin_a = std::sin(angle_radians);
@@ -118,29 +120,20 @@ void draw_spinning_circle(const Image &src, float angle_radians, int dst_size,
     const float src_cy = src.height / 2.0f;
     const float dst_c = dst_size / 2.0f;
 
-    // Full disc radius (outer edge of the vinyl).
     const float radius = dst_size / 2.0f;
-
-    // Outer matte rim is half the given padding.
     const float rim_width = padding * 0.5f;
-    const float art_radius = std::max(0.0f, radius - rim_width);
+    const float art_radius = std::max(0.5f, radius - rim_width);
 
-    // Inner matte ring is half as wide as before (was 0.20 * radius).
     const float hole_radius = radius * 0.05f;
     const float inner_ring_radius =
         std::max(hole_radius + 1.0f, radius * 0.10f);
 
-    // Map the source so its shortest side fits the art area.
     const float scale = std::min(src.width, src.height) / (art_radius * 2.0f);
-
-    // Lip thickness in pixels (was 1.0).
     const float lip_width = 0.5f;
 
     auto lerp = [](float a, float b, float t) { return a + (b - a) * t; };
     auto clamp01 = [](float v) { return std::min(1.0f, std::max(0.0f, v)); };
 
-    // --- Matte color: average cover color, darkened.
-    // Subsampled so it stays cheap; cache this per cover if you want.
     float matte_base[3] = {0.0f, 0.0f, 0.0f};
     {
         const int step_x = std::max(1, src.width / 32);
@@ -158,15 +151,35 @@ void draw_spinning_circle(const Image &src, float angle_radians, int dst_size,
         for (int c = 0; c < 3; ++c) {
             const float avg =
                 count > 0 ? static_cast<float>(sum[c] / count) : 0.0f;
-            matte_base[c] = avg * 0.40f; // darker, matte version of the cover
+            matte_base[c] = avg * 0.40f;
         }
     }
 
-    // Lip is a slightly lighter version of the same matte color.
     float matte_lip[3];
     for (int c = 0; c < 3; ++c) {
         matte_lip[c] = std::min(255.0f, matte_base[c] * 1.5f + 6.0f);
     }
+
+    auto sample = [&](float sx, float sy, float out[3]) {
+        sx = std::min(std::max(sx - 0.5f, 0.0f),
+                      static_cast<float>(src.width - 1));
+        sy = std::min(std::max(sy - 0.5f, 0.0f),
+                      static_cast<float>(src.height - 1));
+
+        const int x0 = std::min(static_cast<int>(sx), src.width - 2);
+        const int y0 = std::min(static_cast<int>(sy), src.height - 2);
+        const float fx = sx - x0;
+        const float fy = sy - y0;
+
+        for (int c = 0; c < 3; ++c) {
+            const float p00 = src.pixels[(y0 * src.width + x0) * 3 + c];
+            const float p10 = src.pixels[(y0 * src.width + x0 + 1) * 3 + c];
+            const float p01 = src.pixels[((y0 + 1) * src.width + x0) * 3 + c];
+            const float p11 =
+                src.pixels[((y0 + 1) * src.width + x0 + 1) * 3 + c];
+            out[c] = lerp(lerp(p00, p10, fx), lerp(p01, p11, fx), fy);
+        }
+    };
 
     for (int y = 0; y < dst_size; ++y) {
         for (int x = 0; x < dst_size; ++x) {
@@ -178,18 +191,15 @@ void draw_spinning_circle(const Image &src, float angle_radians, int dst_size,
                 continue;
             }
 
-            // Anti-aliased coverage of the whole disc.
             const float disc_cov = clamp01(radius - dist + 0.5f) *
                                    clamp01(dist - hole_radius + 0.5f);
             if (disc_cov <= 0.0f) {
                 continue;
             }
 
-            // Coverage of the album art (between inner ring and outer rim).
-            float art_cov = clamp01(art_radius - dist + 0.5f) *
-                            clamp01(dist - inner_ring_radius + 0.5f);
+            const float art_cov = clamp01(art_radius - dist + 0.5f) *
+                                  clamp01(dist - inner_ring_radius + 0.5f);
 
-            // Thin lip at the outer edge and the hole edge.
             const float lip_outer = clamp01(1.0f - (radius - dist) / lip_width);
             const float lip_hole =
                 clamp01(1.0f - (dist - hole_radius) / lip_width);
@@ -200,37 +210,25 @@ void draw_spinning_circle(const Image &src, float angle_radians, int dst_size,
                 color[c] = lerp(matte_base[c], matte_lip[c], lip);
             }
 
-            // Album art, rotated.
             if (art_cov > 0.0f) {
-                const float rx = dx * cos_a + dy * sin_a;
-                const float ry = -dx * sin_a + dy * cos_a;
+                float acc[3] = {0.0f, 0.0f, 0.0f};
+                for (int j = 0; j < SS; ++j) {
+                    for (int i = 0; i < SS; ++i) {
+                        const float sdx = dx + (i + 0.5f) / SS - 0.5f;
+                        const float sdy = dy + (j + 0.5f) / SS - 0.5f;
 
-                const float sx = src_cx + rx * scale;
-                const float sy = src_cy + ry * scale;
+                        const float rx = sdx * cos_a + sdy * sin_a;
+                        const float ry = -sdx * sin_a + sdy * cos_a;
 
-                if (sx >= 0.0f && sy >= 0.0f && sx < src.width - 1 &&
-                    sy < src.height - 1) {
-                    const int x0 = static_cast<int>(sx);
-                    const int y0 = static_cast<int>(sy);
-                    const float fx = sx - x0;
-                    const float fy = sy - y0;
-
-                    for (int c = 0; c < 3; ++c) {
-                        const float p00 =
-                            src.pixels[(y0 * src.width + x0) * 3 + c];
-                        const float p10 =
-                            src.pixels[(y0 * src.width + x0 + 1) * 3 + c];
-                        const float p01 =
-                            src.pixels[((y0 + 1) * src.width + x0) * 3 + c];
-                        const float p11 =
-                            src.pixels[((y0 + 1) * src.width + x0 + 1) * 3 + c];
-
-                        const float top = lerp(p00, p10, fx);
-                        const float bottom = lerp(p01, p11, fx);
-                        const float art = lerp(top, bottom, fy);
-
-                        color[c] = lerp(color[c], art, art_cov);
+                        float tap[3];
+                        sample(src_cx + rx * scale, src_cy + ry * scale, tap);
+                        for (int c = 0; c < 3; ++c)
+                            acc[c] += tap[c];
                     }
+                }
+                const float inv = 1.0f / (SS * SS);
+                for (int c = 0; c < 3; ++c) {
+                    color[c] = lerp(color[c], acc[c] * inv, art_cov);
                 }
             }
 
