@@ -113,7 +113,8 @@ void spotifyPollLoop(
                       << httplib::to_string(res.error()) << std::endl;
             // Keep last published value; try again next cycle.
         } else if (res->status == 204) {
-            std::cout << "Spotify currently-playing nothing is playing";
+            std::cout << "Spotify currently-playing nothing is playing"
+                      << std::endl;
             currently_playing.store(
                 std::make_shared<std::optional<CurrentlyPlaying>>(
                     CurrentlyPlaying{true, std::nullopt}));
@@ -144,7 +145,8 @@ void spotifyPollLoop(
                     }
 
                     std::cout << "Spotify currently-playing got item "
-                              << item_name << " by " << artist_names;
+                              << item_name << " by " << artist_names
+                              << std::endl;
 
                     if (item.contains("album") &&
                         item.at("album").contains("images")) {
