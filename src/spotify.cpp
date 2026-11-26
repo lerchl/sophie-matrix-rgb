@@ -7,7 +7,6 @@
 #include <httplib.h>
 #include <iostream>
 #include <optional>
-#include <ranges>
 #include <string>
 
 constexpr auto kSpotifyAccountsHost = "https://accounts.spotify.com";
@@ -137,13 +136,12 @@ void spotifyPollLoop(
                 if (body.contains("item") && !body.at("item").is_null()) {
                     const auto &item = body.at("item");
                     const auto item_name = item.at("name").get<std::string>();
-                    auto artist_names =
-                        item.at("artists") |
-                        std::views::transform([](const auto &a) {
-                            return a.at("name").template get<std::string>();
-                        }) |
-                        std::views::join_with(std::string_view(", ")) |
-                        std::ranges::to<std::string>();
+                    std::string artist_names;
+                    for (const auto &a : item.at("artists")) {
+                        if (!artist_names.empty())
+                            artist_names += ", ";
+                        artist_names += a.at("name").get<std::string>();
+                    }
 
                     std::cout << "Spotify currently-playing got item "
                               << item_name << " by " << artist_names;
