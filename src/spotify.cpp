@@ -7,6 +7,8 @@
 #include <httplib.h>
 #include <iostream>
 #include <optional>
+#include <ranges>
+#include <string>
 
 constexpr auto kSpotifyAccountsHost = "https://accounts.spotify.com";
 constexpr auto kSpotifyApiHost = "https://api.spotify.com";
@@ -112,10 +114,10 @@ void spotifyPollLoop(
                       << httplib::to_string(res.error()) << std::endl;
             // Keep last published value; try again next cycle.
         } else if (res->status == 204) {
+            std::cout << "Spotify currently-playing nothing is playing";
             currently_playing.store(
                 std::make_shared<std::optional<CurrentlyPlaying>>(
-                    CurrentlyPlaying{/*is_paused=*/true,
-                                     /*album_cover_url=*/std::nullopt}));
+                    CurrentlyPlaying{true, std::nullopt}));
         } else if (res->status == 401) {
             // Token rejected despite passing our expiry check — e.g. user
             // revoked access on Spotify's side. Let next cycle sort it out.
@@ -134,6 +136,18 @@ void spotifyPollLoop(
 
                 if (body.contains("item") && !body.at("item").is_null()) {
                     const auto &item = body.at("item");
+                    const auto item_name = item.at("name").get<std::string>();
+                    auto artist_names =
+                        item.at("artists") |
+                        std::views::transform([](const auto &a) {
+                            return a.at("name").template get<std::string>();
+                        }) |
+                        std::views::join_with(std::string_view(", ")) |
+                        std::ranges::to<std::string>();
+
+                    std::cout << "Spotify currently-playing got item "
+                              << item_name << " by " << artist_names;
+
                     if (item.contains("album") &&
                         item.at("album").contains("images")) {
                         const auto &images = item.at("album").at("images");
